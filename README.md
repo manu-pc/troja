@@ -34,7 +34,7 @@ currently only in galician
     source venv/bin/activate
     pip install -r requirements.txt
 
-<details>
+</details>
 
 <details>
 <summary>setup</summary>
