@@ -27,7 +27,7 @@ currently only in galician
    cd troja
 
 2. install all dependencies
-    * if your python environment is externally managed (ex: ubuntu) you'll need to setup a virtual environment
+    * if your python environment is externally managed (ex: ubuntu) you'll need to setup a virtual environment:
 
     ```bash
     python3 -m venv venv
