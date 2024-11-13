@@ -3,7 +3,7 @@
 import spotipy  # https://spotipy.readthedocs.io/en/2.24.0/
 import time
 import random
-from fuzzywuzzy import process
+import difflib
 from spotipy.oauth2 import SpotifyOAuth
 import configparser
 
@@ -66,15 +66,20 @@ def skip(silent=False):
 
 
 def play(playlist):
-    if playlist['type'] == 'album':
-        sp.shuffle(state=False)
-        print('reproducindo álbum: ' + playlist['name'] + ' - ' + playlist['artists'][0]['name'])
-    else:
-        print('reproducindo álbum:' + playlist['name'] + ' (' + playlist['description'] + ') ')
-        sp.shuffle(state=True)
-    sp.start_playback(context_uri=playlist['uri'])
-    time.sleep(0.7)
-    now_playing()
+    try:
+        if playlist['type'] == 'album':
+            sp.shuffle(state=False)
+            print('reproducindo álbum: ' + playlist['name'] + ' - ' + playlist['artists'][0]['name'])
+        else:
+            print('reproducindo playlist: ' + playlist['name'] + ' (' + playlist['description'] + ') ')
+            sp.shuffle(state=True)
+        sp.start_playback(context_uri=playlist['uri'])
+        time.sleep(0.7)
+        now_playing()
+    except Exception:
+        print('non hai unha cola de reproducción activa. abre spotify nalgun dispositivo para comezar a reproducir')
+
+
 
 
 def p(query, silent=False):  # plays a song w/o interrupting queue
@@ -191,12 +196,6 @@ except Exception as e:
 inp = ''
 warn_time = True
 
-hangman = 0
-errores = 6
-intentos = []
-h_palabra = []
-h_guess = ''
-
 # </editor-fold>
 
 while inp != '/':
@@ -269,30 +268,8 @@ while inp != '/':
         except Exception as e:
             report(e)
 
-    if inp.startswith('play '):  # PLAY + PLAYLIST  -  REPRODUCIR PLAYLIST
-        query = inp.split('play ')[1]
 
-        try:
-            p_name = process.extractOne(query, playlist_names)
-            # print('prec: ' + str(p_name[1]))
-            if p_name[1] > 86:  # se o que di o usuario se parece mas ou menos a algunha playlist gardada
-                playlist = playlists[playlist_names.index(p_name[0])]
-                play(playlist)
-            else:
-                inp = input('non se atopou ningunha playlist gardada con ese nome.\n'
-                            '0 - cancelar\n'
-                            '1 - buscar playlists en internet\n'
-                            '2 - buscar álbums\n'
-                            '<' + username + '>: ')
-                if inp == '1':
-                    playlist = sp.search(q=query, limit=1, type='playlist')['playlists']['items'][0]
-                    play(playlist)
-                if inp == '2':
-                    playlist = sp.search(q=query, limit=1, type='album')['albums']['items'][0]
-                    play(playlist)
 
-        except Exception as e:
-            report(e)
 
     if inp == 'play':
         print('As túas playlist gardadas: ')
@@ -313,7 +290,7 @@ while inp != '/':
                 print('non se atopou a playlist!!!1!')
         except Exception as e:
             report(e)
-    if inp.startswith('aplay '):  # APLAY + PLAYLIST  -  REPRODUCIR ÁLBUM
+    if inp.startswith('aplay '):  # APLAY + ALBUM  -  REPRODUCIR ÁLBUM
         query = inp.split('aplay ')[1]
         try:
             playlist = sp.search(q=query, limit=1, type='album')['albums']['items'][0]
@@ -321,7 +298,29 @@ while inp != '/':
 
         except Exception as e:
             report(e)
-
+    if inp.startswith('play '):   # PLAY + PLAYLIST  -  REPRODUCIR PLAYLIST GARDADA
+        query = inp.split('play ')[1]
+        match = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
+        
+        if match:
+            # se hai unha parecida
+            playlist_name = match[0]
+            playlist = playlists[playlist_names.index(playlist_name)]
+            play(playlist)
+        else:
+            # se non encontra ningunha playlist parecido ao que buscas, pide:
+            inp = input(f'non se atopou a playlist"{query}".\n'
+                        '0 - cancelar\n'
+                        '1 - procurar playlists online\n'
+                        '2 - procurar albums online\n'
+                        '<' + username + '>: ')
+            if inp == '1':
+                playlist = sp.search(q=query, limit=1, type='playlist')['playlists']['items'][0]
+                play(playlist)
+            elif inp == '2':
+                print("consello: podes empregar 'aplay' [album]")
+                playlist = sp.search(q=query, limit=1, type='album')['albums']['items'][0]
+                play(playlist)
     if inp in ['skip', 's']:  # S -  SALTAR CANCIÓN
         try:
             skip()
@@ -566,7 +565,6 @@ while inp != '/':
         print('pódenche gustar: ')
         for track in rec['tracks']:
             print('\n- ' + track['artists'][0]['name'])
-        continue
 
     # <editor-fold desc="DEBUG">
     if inp == '565678':
