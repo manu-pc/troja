@@ -20,9 +20,9 @@ vocabulario = []
 config = configparser.ConfigParser()
 config.read('config.ini')
 
-client_id = config.get('SPOTIPY', 'SPOTIPY_CLIENT_ID')
-client_secret = config.get('SPOTIPY', 'SPOTIPY_CLIENT_SECRET')
-redirect_uri = config.get('SPOTIPY', 'SPOTIPY_REDIRECT_URI')
+client_id = config.get('SPOTIPY', 'client_id')
+client_secret = config.get('SPOTIPY', 'client_secret')
+redirect_uri = config.get('SPOTIPY', 'redirect_uri')
 
 
 # </editor-fold>
