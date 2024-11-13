@@ -4,6 +4,7 @@ import spotipy  # https://spotipy.readthedocs.io/en/2.24.0/
 import time
 import random
 import difflib
+import sys
 from spotipy.oauth2 import SpotifyOAuth
 import configparser
 
@@ -14,15 +15,18 @@ playlists = []
 playlist_names = []
 top_artists = {'short_term': [], 'medium_term': [], 'long_term': []}
 top_tracks = {'short_term': [], 'medium_term': [], 'long_term': []}
-vocabulario = []
-
-# Initialize parser
+colors = {'blue':"\u001B[34m" , 'red': "\u001B[31m", 'purple':"\u001B[35m", 'yellow':"\u001B[33m", 'white':"\u001B[37m", 'reset':"\u001B[0m"}
+color = 'blue';
+# init parser
 config = configparser.ConfigParser()
-config.read('config.ini')
-
-client_id = config.get('SPOTIPY', 'client_id')
-client_secret = config.get('SPOTIPY', 'client_secret')
-redirect_uri = config.get('SPOTIPY', 'redirect_uri')
+try:
+    config.read('config.ini')
+    client_id = config.get('SPOTIPY', 'client_id')
+    client_secret = config.get('SPOTIPY', 'client_secret')
+    redirect_uri = config.get('SPOTIPY', 'redirect_uri')
+except Exception:
+    print("non se puido ler o arquivo 'config.ini'! le o readme para ver detalles sobre o uso da API.")
+    sys.exit(1)
 
 
 # </editor-fold>
@@ -178,7 +182,7 @@ except Exception as e:
     print('non se puido iniciar sesión !!')
     report(e)
     sp = None
-    input('pulsa enter para que crashee inevitablemente o programa')
+    sys.exit(1);
 
 try:
     username = sp.me()['display_name']
@@ -189,9 +193,7 @@ try:
 except Exception as e:
     print('produciuse un erro inicializando!! a pesar de que se iniciou sesión ben!! o cal é estraño!!')
     report(e)
-    input('pulsa enter para que crashee inevitablemente o programa')
-    username = None
-    user_id = None
+    sys.exit(1);
 
 inp = ''
 warn_time = True
@@ -199,7 +201,7 @@ warn_time = True
 # </editor-fold>
 
 while inp != '/':
-    inp = input('\n<' + username + '>: ').lower()
+    inp = input(colors[color] + '\n<' + username + '>: ' + colors['reset']).lower()
 
     # <editor-fold desc=" -- HELP --">
     if inp == 'help':
@@ -386,7 +388,7 @@ while inp != '/':
                     i = 0
                     for track in top_tracks[time_range][:ndatos]:
                         i += 1
-                        print(str(i) + ' - ' + track['name'])
+                        print(str(i) + ' - ' + fullname(track))
 
                     print('\n\n')
 
@@ -423,7 +425,11 @@ while inp != '/':
         query = ' '
 
         while query not in ['/', ''] and i < 5:
-            query = input('\n - ')
+            try:
+                query = input('\n - ').encode('utf-8').decode('utf-8')
+            except Exception as E:
+                report(E)
+                continue
             if query not in ['/', '']:
                 song = sp.search(q=query, limit=5, type='track')['tracks']['items'][0]
                 song_list += [song['uri']]
@@ -593,17 +599,24 @@ while inp != '/':
     if inp == 'bomba':
         print('bomba cargada')
 
-    if inp.startswith('/nick '):
-        username = inp.split('/nick ')[1]
+    if inp.startswith('nick '):
+        username = inp.split('nick ')[1]
+
+        
+    if inp.startswith('color '):
+        if (inp.split('color ')[1] not in colors):
+            print("colores válidos: blue, red, purple, yellow")
+        else :
+            color = inp.split('color ')[1]
+
 
     if inp in ['viva españa', 'arriba españa']:
         if random.randint(0, 5) != 1:
             p('Himno de España - '
               'Legión Española')
         else:
-            p('els segadors - banda republicana', silent=True)
-            print('ahora sona: Himno de España - '
-                   'Legión Española')
+            p('els segadors - banda republicana')
+
 
     if inp in ['root', 'admin', 'debug']:
         input('enter root password: ')
