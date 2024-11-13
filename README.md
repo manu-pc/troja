@@ -1,6 +1,6 @@
 # troja
 
-#[bis Troja brennt!](https://open.spotify.com/track/5IE8RYLIjM4oy5Cr3Q3RQy?si=899fa3fb471f46cb)
+[**bis Troja brennt!**](https://open.spotify.com/track/5IE8RYLIjM4oy5Cr3Q3RQy?si=899fa3fb471f46cb)
 
 spotify CLI client
 
