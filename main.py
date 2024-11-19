@@ -15,36 +15,35 @@ playlists = []
 playlist_names = []
 top_artists = {'short_term': [], 'medium_term': [], 'long_term': []}
 top_tracks = {'short_term': [], 'medium_term': [], 'long_term': []}
-colors = {'blue':"\u001B[34m" , 'red': "\u001B[31m", 'purple':"\u001B[35m", 'yellow':"\u001B[33m", 'white':"\u001B[37m", 'reset':"\u001B[0m"}
-color = 'blue';
+colors = {'blue':"\u001B[34m" , 'red': "\u001B[31m", 'purple':"\u001B[35m", 'yellow':"\u001B[33m", 'white':"\u001B[37m",     
+    'green': "\u001B[32m", 'cyan': "\u001B[36m",'magenta': "\u001B[35m", 'black': "\u001B[30m",'grey': "\u001B[90m",
+    'light_red': "\u001B[91m",'light_green': "\u001B[92m",'light_yellow': "\u001B[93m",'light_blue': "\u001B[94m",
+    'light_magenta': "\u001B[95m",'light_cyan': "\u001B[96m",'light_white': "\u001B[97m",'reset':"\u001B[0m"}
+# </editor-fold>
 # init parser
 config = configparser.ConfigParser()
-try:
-    config.read('config.ini')
-    client_id = config.get('SPOTIPY', 'client_id')
-    client_secret = config.get('SPOTIPY', 'client_secret')
-    redirect_uri = config.get('SPOTIPY', 'redirect_uri')
-except Exception:
-    print("non se puido ler o arquivo 'config.ini'! le o readme para ver detalles sobre o uso da API.")
-    sys.exit(1)
 
 
 # </editor-fold>
 
 # <editor-fold desc="FUNCIÓNS">
 
-
-
+def printc(text, color='white', newline=True): #imprime en cor
+    if newline:
+        print(colors[color] + text + colors['reset'])
+    else:
+        print(colors[color] + text + colors['reset'], end='')
+    
 def intput(prompt, min=0, max=9999):
     ans = None
     while ans is None:
         try:
             ans = int(input(prompt))
             if not min <= ans <= max:  # If outside the range, reset ans to None
-                print('Introduza un número válido!!')
+                printc('Invalid number, must be between ' + str(min) + ' and ' + str(max) + '.', 'red')
                 ans = None
         except ValueError:
-            print('Introduza un número válido!!')
+            printc('Please enter a number.', 'red')
             ans = None
     return ans
 
@@ -55,11 +54,15 @@ def fullname(track):
 
 def now_playing():
     try:
-        if sp.current_playback()['is_playing']:
-            print('ahora sona:')
-            print(fullname(sp.currently_playing()['item']))
+        playback = sp.current_playback()
+        if playback and playback['is_playing']:
+            track = playback['item']
+            printc('Now playing: ', newline=False)
+            printc(track['name'], color=song_color, newline=False)
+            printc(' - ', color='grey', newline=False)
+            printc(track['artists'][0]['name'], color=artist_color)
     except Exception:
-        print('non hai unha cola de reproducción activa. abre spotify nalgun dispositivo para comezar a reproducir')
+        printc('[W] No active playback found! Please start playing spotify on a device to begin.', 'yellow')
 
 
 def skip(silent=False):
@@ -73,15 +76,20 @@ def play(playlist):
     try:
         if playlist['type'] == 'album':
             sp.shuffle(state=False)
-            print('reproducindo álbum: ' + playlist['name'] + ' - ' + playlist['artists'][0]['name'])
+            printc('Playing album: ', newline=False)
+            printc(playlist['name'], album_color, newline=False)
+            printc(' - ', 'grey', newline=False)
+            printc(playlist['artists'][0]['name'], artist_color)
         else:
-            print('reproducindo playlist: ' + playlist['name'] + ' (' + playlist['description'] + ') ')
+            printc('Playing playlist: ', newline=False)
+            printc(playlist['name'], playlist_color, newline=False)
+            printc(' (' + playlist['description'] + ') ')
             sp.shuffle(state=True)
         sp.start_playback(context_uri=playlist['uri'])
         time.sleep(0.7)
         now_playing()
     except Exception:
-        print('non hai unha cola de reproducción activa. abre spotify nalgun dispositivo para comezar a reproducir')
+        printc('No active playback found. please start playing spotify on a device to begin.', 'red')
 
 
 
@@ -116,10 +124,9 @@ def load_playlists():  # lee as playlists gardadas
 
 
 def create_top_playlist(n, time_range):
-    tempos = {'short_term': ' do mes', 'medium_term': ' dos últimos 6 meses', 'long_term': ''}
+    tempos = {'short_term': ' this month', 'medium_term': ' last 6 months', 'long_term': ''}
     p_name = 'top ' + str(n) + tempos[time_range] + ' de ' + username
-    print(p_name)
-    p_desc = 'creado con troja'
+    p_desc = 'Created with troja'
     play_id = sp.user_playlist_create(user_id, name=p_name, description=p_desc)['uri']
 
     song_list = top_tracks[time_range][:n]
@@ -132,29 +139,28 @@ def create_top_playlist(n, time_range):
 
     return play_id
 
-
 def expand_playlist(play_id, seed_artists=None, seed_tracks=None, seed_genres=None, limit=50):
-    newsongs = \
-        sp.recommendations(seed_artists=seed_artists, seed_tracks=seed_tracks, seed_genres=seed_genres, limit=limit)[
-            'tracks']
-    k = 0
-    for song in newsongs:
-        newsongs[k] = song['uri']
-        k += 1
-
-    sp.playlist_add_items(playlist_id=play_id, items=newsongs)
+    try:
+        recommendations = sp.recommendations(seed_artists=seed_artists, seed_tracks=seed_tracks, seed_genres=seed_genres, limit=limit)
+        newsongs = [track['uri'] for track in recommendations['tracks']]
+        sp.playlist_add_items(playlist_id=play_id, items=newsongs)
+        printc(f'Successfully added {len(newsongs)} songs to the playlist.', 'green')
+    except Exception as e:
+        report(e)
 
 
 def init():
-    print('\nbenvido, ' + username + '! (id: ' + user_id + ')')
-    print('cargando playlists...')
+    print('Welcome, ' + username + '!', end='')
+    printc(' [ID: ' + user_id + ']', 'yellow')
+    print('Loading playlists...', end='')
     load_playlists()
+    printc(' Success!', 'light_green')
     now_playing()
-    print('escriba \'help\' para ver unha lista de comandos.')
+    printc('Type \'help\' to see a list of valid commands.')
 
 
 def report(error):
-    print('Produciuse un erro. (' + str(error) + ') ')
+    printc('An error occurred. (' + str(error) + ')')
 
 
 def load_top():
@@ -168,32 +174,84 @@ def load_top():
 
 # <editor-fold desc="INIT">
 
+
+try:
+    configModified = False
+    config.read('config.ini')
+    client_id = config.get('SPOTIPY', 'client_id')
+    client_secret = config.get('SPOTIPY', 'client_secret')
+    redirect_uri = config.get('SPOTIPY', 'redirect_uri')
+    # Check if colors section exists, if not, create it
+    if not config.has_section('COLORS'):
+        config.add_section('COLORS')
+        printc("[Tip]: you can change colors by modifying the config.ini file! This message appeared because no colors were found.", color='yellow')
+        configModified = True
+
+    if not config.has_option('COLORS', 'song_color'):
+        config.set('COLORS', 'song_color', 'blue')
+    if not config.has_option('COLORS', 'artist_color'):
+        config.set('COLORS', 'artist_color', 'purple')
+    if not config.has_option('COLORS', 'album_color'):
+        config.set('COLORS', 'album_color', 'green')
+    if not config.has_option('COLORS', 'playlist_color'):
+        config.set('COLORS', 'playlist_color', 'yellow')
+    if not config.has_option('COLORS', 'user_color'):
+        config.set('COLORS', 'user_color', 'light_cyan')
+
+
+
+    if configModified:
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+        
+    song_color = config.get('COLORS', 'song_color')
+    artist_color = config.get('COLORS', 'artist_color')
+    album_color = config.get('COLORS', 'album_color')
+    playlist_color = config.get('COLORS', 'playlist_color')
+    user_color = config.get('COLORS', 'user_color')
+    # Validate colors
+    default_color = 'white'
+    for color_key in ['song_color', 'artist_color', 'album_color', 'playlist_color', 'user_color']:
+        if config.get('COLORS', color_key) not in colors:
+            printc(f"[W] {color_key} is not a valid color. Replacing with default color.", 'yellow')
+            config.set('COLORS', color_key, default_color)
+            configModified = True
+
+    if configModified:
+        with open('config.ini', 'w') as configfile:
+            config.write(configfile)
+    
+except Exception:
+    printc("config.ini file couldn't be read! please check setup instructions on the readme.md file.", 'red')
+    sys.exit(1)
+
 scope = ["user-library-read", 'user-read-playback-state', 'user-modify-playback-state', 'playlist-modify-public',
          'playlist-modify-private',
          'user-top-read', 'playlist-read-private']
 # https://developer.spotify.com/documentation/web-api/concepts/scopes
 
-print('iniciando sesión...')
+print('Logging in...', end='')
 try:
     sp = spotipy.Spotify(
         auth_manager=SpotifyOAuth(scope=scope, client_id=client_id, client_secret=client_secret,
                                   redirect_uri=redirect_uri))
 except Exception as e:
-    print('non se puido iniciar sesión !!')
+    printc('Couldn\'t log in!')
     report(e)
     sp = None
-    sys.exit(1);
+    sys.exit(1)
+printc(' Success!', 'light_green')
 
 try:
     username = sp.me()['display_name']
     user_id = sp.me()['id']
     query = ''
-
     init()
+    
 except Exception as e:
-    print('produciuse un erro inicializando!! a pesar de que se iniciou sesión ben!! o cal é estraño!!')
+    printc('an error occurred while initializing!! even though the login was successful! which is weird!!!')
     report(e)
-    sys.exit(1);
+    sys.exit(1)
 
 inp = ''
 warn_time = True
@@ -201,39 +259,39 @@ warn_time = True
 # </editor-fold>
 
 while inp != '/':
-    inp = input(colors[color] + '\n<' + username + '>: ' + colors['reset']).lower()
+    inp = input(colors[user_color] + '\n<' + username + '>: ' + colors['reset']).lower()
 
     # <editor-fold desc=" -- HELP --">
     if inp == 'help':
-        print('/ - saír do programa\n'
-               'q (+ cancion) - consulta cola actual, ou engade canción á cola \n'
-               's, skip - salta canción actual\n'
-               'p + cancion -  comeza a reproducir unha canción, sen interrumpir a cola\n'
-               'play + playlist - comeza a reproducir unha playlist\n'
-               'aplay + album - comeza a reproducir un álbum\n'
-               'save + playlist - engade a canción actual a unha playlist \n'
-               't, top - consulta cancións / artistas máis escoitados, e permite exportalos a unha playlist\n'
-               'make - crea unha playlist, manualmente ou autocompletada co algoritmo de Spotify\n'
-               'help+ - ver máis comandos')
+        printc('/ - exit the program\n'
+               'q (+ song) - check current queue, or add song to queue \n'
+               's, skip - skip current song\n'
+               'p + song - start playing a song, without modifying the queue\n'
+               'play + playlist - start playing a playlist\n'
+               'aplay + album - start playing an album\n'
+               'save + playlist - add the current song to a playlist \n'
+               't, top - check most listened songs/artists, and allows exporting them to a playlist\n'
+               'make - create a playlist, manually or auto-completed with Spotify algorithm\n'
+               'help+ - see more commands')
 
     if inp == 'help+':
-        print('reroll - randomiza a cola actual\n'
-               'expand + playlist - expande unha playlist existente con recomendacións\n'
-               'rec - comeza a reproducir unha recomendación aleatoria, baseándose na túa cola actual\n'
-               'rec + artista - comeza a reproducir unha recomendación aleatoria dun artista \n'
-               'd, discover - recomendache cancións, álbums ou artistas novos \n'
-               '(inclúe un + tras o nome do artista para permitir artistas similares')
+        printc('reroll - randomize the current queue\n'
+                'expand + playlist - expand an existing playlist with recommendations\n'
+                'rec - start playing a random recommendation, based on your current queue\n'
+                'rec + artist - start playing a random recommendation from an artist \n'
+                'd, discover - recommend new songs, albums, or artists \n'
+                '(include a + after the artist name to allow similar artists)')
 
     # </editor-fold>
 
     # <editor-fold desc=" -- PLAYBACK -- ">
     if inp == 'q':  # Q - IMPRIMIR COLA
         now_playing()
-        print('cola actual:')
+        printc('Current queue:')
         i = 0
         for track in sp.queue()['queue']:
             if i < MAX_QUEUE:
-                print('\n - ' + fullname(track))
+                printc('\n - ' + fullname(track))
             i += 1
 
     if inp.startswith('q '):  # Q + CANCIÓN  -  ENGADIR CANCIÓN A COLA
@@ -243,14 +301,14 @@ while inp != '/':
             song = sp.search(q=query, limit=1, type='track')['tracks']['items'][0]
             sp.add_to_queue(song['external_urls']['spotify'])
 
-            print('engadido á cola:')
-            print(fullname(song))
+            printc('Added to queue:')
+            printc(fullname(song))
         except Exception as e:
             report(e)
 
     if inp == 'p':
         if sp.current_playback()['is_playing']:
-            print('pausa!')
+            printc('Pausing playback...')
             sp.pause_playback()
 
         else:
@@ -271,12 +329,29 @@ while inp != '/':
             report(e)
 
 
-
+    if inp.startswith('config'):
+        try:
+            parts = inp.split()
+            if len(parts) == 3 and parts[1] in ['song_color', 'artist_color', 'album_color', 'playlist_color', 'user_color']:
+                color_key = parts[1]
+                new_color = parts[2]
+                if new_color in colors:
+                    config.set('COLORS', color_key, new_color)
+                    with open('config.ini', 'w') as configfile:
+                        config.write(configfile)
+                    printc(f"{color_key} has been updated to {new_color}.", 'green')
+                    globals()[color_key] = new_color
+                else:
+                    printc(f"{new_color} is not a valid color.", 'red')
+            else:
+                printc("Usage: config [color_key] [color]", 'yellow')
+        except Exception as e:
+            report(e)
 
     if inp == 'play':
-        print('As túas playlist gardadas: ')
-        print(playlist_names)
-        print('Podes usar play + un nome dunha playlist para reproducila.')
+        printc('Saved playlists: ')
+        printc(playlist_names)
+        printc('Use play [playlist] to start playing a playlist.')
 
     if inp.startswith('save '):  # SAVE + PLAYLIST  -  GARDA A PLAYLIST
         query = inp.split('save ')[1]
@@ -286,10 +361,10 @@ while inp != '/':
                 playlist = playlists[playlist_names.index(p_name[0])]
                 song = sp.currently_playing()['item']
                 sp.playlist_add_items(playlist['uri'], [song['uri']])
-                print('engadiuse \'' + fullname(song) + '\' á playlist \'' + p_name[0] + '\'')
+                printc("Added " + fullname(song) + " to " + playlist['name'])
 
             else:
-                print('non se atopou a playlist!!!1!')
+                printc('Playlist not found! please try again.')
         except Exception as e:
             report(e)
     if inp.startswith('aplay '):  # APLAY + ALBUM  -  REPRODUCIR ÁLBUM
@@ -311,16 +386,16 @@ while inp != '/':
             play(playlist)
         else:
             # se non encontra ningunha playlist parecido ao que buscas, pide:
-            inp = input(f'non se atopou a playlist"{query}".\n'
-                        '0 - cancelar\n'
-                        '1 - procurar playlists online\n'
-                        '2 - procurar albums online\n'
+            inp = input(f'Couldn\'t find playlist "{query}".\n'
+                        '0 - cancel\n'
+                        '1 - search online\n'
+                        '2 - search albums\n'
                         '<' + username + '>: ')
             if inp == '1':
                 playlist = sp.search(q=query, limit=1, type='playlist')['playlists']['items'][0]
                 play(playlist)
             elif inp == '2':
-                print("consello: podes empregar 'aplay' [album]")
+                printc("Tip: you can also use aplay [album]")
                 playlist = sp.search(q=query, limit=1, type='album')['albums']['items'][0]
                 play(playlist)
     if inp in ['skip', 's']:  # S -  SALTAR CANCIÓN
@@ -343,8 +418,7 @@ while inp != '/':
         artist = sp.search(q=inp, limit=5, type='artist')['artists']['items'][0]
         song = sp.recommendations(seed_artists=[artist['uri']], limit=1)['tracks'][0]
         if not inp.endswith('+') and warn_time:  # este aviso solo salta unha vez
-            print('dependendo do artista, '
-                   'isto pode tardar un cacho pola forma na que funciona o algoritmo de recomendacions de spotify :(')
+            printc('This could take a while because of how Spotify\'s algorithm works...')
             warn_time = False
         while (song['artists'][0]['name'] != artist['name']) and not inp.endswith('+'):
             song = sp.recommendations(seed_artists=[artist['uri']], limit=1)['tracks'][0]
@@ -364,46 +438,46 @@ while inp != '/':
         try:
             inp = ' '
             while inp not in ['/', '']:
-                print('0 - últimas 4 semanas\n'
-                       '1 - últimos 6 meses\n'
+                printc('0 - last 4 weeks\n'
+                       '1 - last 6 months\n'
                        '2 - total\n')
-                inp = input('Escolla (ou \'/\' para saír): ')
+                inp = input('Choose (or \'/\' to cancel): ')
                 if inp not in ['0', '1', '2']:
                     inp = '/'
 
                 else:
                     if not top_tracks['long_term']:
-                        print('cargando datos...')
+                        printc('Loading data...')
                         load_top()
                     time_range = ranges[int(inp)]
-                    ndatos = intput('\nNúmero de datos que imprimir (1-50): ', 1, 50)
+                    ndatos = intput('\nChoose how many entries to see (1-50): ', 1, 50)
 
-                    print('\nArtistas máis escoitados:')
+                    printc('\nMost played artists:')
                     i = 0
                     for artist in top_artists[time_range][:ndatos]:
                         i += 1
-                        print(str(i) + ' - ' + artist['name'])
-                    input('Prema enter para continuar...')
-                    print('\nCancións máis escoitadas:')
+                        printc(str(i) + ' - ' + artist['name'])
+                    input('Press Enter to continue..')
+                    printc('\nMost played songs:')
                     i = 0
                     for track in top_tracks[time_range][:ndatos]:
                         i += 1
-                        print(str(i) + ' - ' + fullname(track))
+                        printc(str(i) + ' - ' + fullname(track))
 
-                    print('\n\n')
+                    printc('\n\n')
 
-                    query = input('Gardar estos datos nunha playlist? (y/n) ')
+                    query = input('Save this data to a playlist? (y/n) ')
                     if query == 'y':
                         play_id = create_top_playlist(ndatos, time_range)
-                        query = input('playlist creada. completar con recomendacións? (y/n) ')
+                        query = input('Playlist succesfully created. Complete with recommendations? (y/n) ')
                         if query == 'y':
-                            limit = intput('cantas cancións engadir? (1-100) ', 1, 100)
+                            limit = intput('How many new songs would you like to add? (1-100) ', 1, 100)
                             if 0 < limit < 101:
                                 art_list = []
                                 for artist in top_artists[time_range][:5]:
                                     art_list += [artist['uri']]
                                 expand_playlist(play_id, art_list, limit=limit)
-                                print('playlist expandida con ' + str(limit) + ' novas cancións.')
+                                printc('Playlist expanded with ' + str(limit) + ' new songs.')
 
             inp = '0'
 
@@ -415,10 +489,10 @@ while inp != '/':
     if inp == 'make':
         p_name = ''
         while p_name == '':
-            p_name = input('Nome da playlist: ')
-        p_desc = 'creado con troja'
+            p_name = input('Playlist name: ')
+        p_desc = 'Created with troja.'
 
-        print('Escribe unha lista de cancións que engadir. Escribe / para finalizar.')
+        printc('\nWrite a list of new songs to add. Write / to finish.')
         seed_list = []
         song_list = []
         i = 0
@@ -434,8 +508,7 @@ while inp != '/':
                 song = sp.search(q=query, limit=5, type='track')['tracks']['items'][0]
                 song_list += [song['uri']]
 
-        print('\nEscribe unha lista de artistas que sirvan para completar a playlist. Escribe / para finalizar.  (en '
-               'total, pódense empregar un máx. de 5 semillas)')
+        printc('\nWrite a list of artists to add. Write / to finish. (up to 5 seeds)')
         art_list = []
         query = ' '
         while query not in ['/', ''] and i < 5:
@@ -447,23 +520,22 @@ while inp != '/':
                 i += 1
 
         if i < 5:
-            print('\nEscribe unha lista de xéneros que sirvan para completar a playlist. Escribe / para finalizar. '
-                   'Escribe ? para ver unha lista de xéneros válidos.')
+            printc('\nWrite a list of genres to add. Write / to finish. Write ? to see a list of valid genres.')
         genre_list = []
         query = ' '
         while query not in ['/', ''] and i < 5:
             query = input('\n - ')
             if query == '?':
-                print(sp.recommendation_genre_seeds()['genres'])
+                printc(sp.recommendation_genre_seeds()['genres'])
             elif query not in ['/', '']:
                 if query in sp.recommendation_genre_seeds()['genres']:
                     genre_list += [query]
                     seed_list += [query]
                     i += 1
                 else:
-                    print('Xénero inválido.')
+                    printc('Invalid genre.')
 
-        limit = intput('Cantas cancións novas engadir? (0-100)', 0, 100)
+        limit = intput('How many new songs would you like to add? (0-100)', 0, 100)
         play_id = sp.user_playlist_create(user_id, name=p_name, description=p_desc)['uri']
 
         if len(song_list) > 0:
@@ -478,13 +550,12 @@ while inp != '/':
             j += 1
 
         if len(seed_list) == 0:
-            print('non seleccionaches nada. que ques facer unha playlist vacia? fache falta un programa pa eso? '
-                   'madura.')
+            printc('Cannot create an empty playlist!')
         else:
             expand_playlist(play_id, seed_artists=art_list, seed_tracks=seed_songs, seed_genres=genre_list, limit=limit)
 
-            print('Semillas utilizadas: ')
-            print(seed_list)
+            printc('Seeds used: ')
+            printc(seed_list)
 
             p_desc += '. inclúe '
             if i > 2:
@@ -494,7 +565,7 @@ while inp != '/':
                 p_desc += (seed_list[i - 2] + ' e ')
             p_desc += seed_list[i - 1] + '.'
             sp.playlist_change_details(playlist_id=play_id, description=p_desc)
-            inp = input('Playlist creada. Reproducir ahora? (y/n) ')
+            inp = input('Playlist created. Play now? (y/n) ')
             if inp == 'y':
                 play(sp.playlist(play_id))
 
@@ -507,8 +578,7 @@ while inp != '/':
         p_name = process.extractOne(query, playlist_names)
         play_id = playlists[playlist_names.index(p_name[0])]['uri']
 
-        print('\nEscribe unha lista de artistas que sirvan para completar a playlist. Escribe / para finalizar.  (en '
-               'total, pódense empregar un máx. de 5 semillas)')
+        printc('\nWrite a list of artists to expand the playlist. Write / to finish. (up to 5 seeds)')
         art_list = []
         seed_list = []
         query = ' '
@@ -522,38 +592,33 @@ while inp != '/':
                 i += 1
 
         if i < 5:
-            print('\nEscribe unha lista de xéneros que sirvan para completar a playlist. Escribe / para finalizar. '
-                   'Escribe ? para ver unha lista de xéneros válidos.')
+            printc('\nWrite a list of genres to expand the playlist. Write / to finish. (up to 5 seeds)')
+
         genre_list = []
         query = ' '
         while query not in ['/', ''] and i < 5:
             query = input('\n - ')
             if query == '?':
-                print(sp.recommendation_genre_seeds()['genres'])
+                printc(sp.recommendation_genre_seeds()['genres'])
             elif query not in ['/', '']:
                 if query in sp.recommendation_genre_seeds()['genres']:
                     genre_list += [query]
                     seed_list += [query]
                     i += 1
                 else:
-                    print('Xénero inválido.')
+                    printc('Invalid genre.')
 
-        limit = intput('Cantas cancións novas engadir? (0-100)', 0, 100)
+        limit = intput('How many new songs would you like to add? (0-100)', 0, 100)
         expand_playlist(play_id, seed_artists=art_list, seed_genres=genre_list, limit=limit)
-        print('Engadíronse ' + str(limit) + ' cancións.')
+        printc('Added ' + str(limit) + ' songs.')
 
     # </editor-fold>
 
     if inp in ['d', 'discover']:
-        inp = intput(
-            '0 - introduce unha lista de artistas para recibir recomendacións doutros artistas similares \n'
-            '1 - ver recomendacións baseándose nos teus artistas favoritos (do último mes)\n'
-            '<' + username + '>: ', 0, 1)
+        int_inp = intput('0 - manual\n1 - based on top artists\n' + '<' + username + '>: ', 0, 1)
         art_list = []
-        if inp == 0:
-            print(
-                '\nEscribe unha lista de artistas. Escribe / para finalizar.  (en '
-                'total, pódense empregar un máx. de 5 semillas)')
+        if int_inp == 0:
+            printc('\nWrite a list of artists. Write / to finish. (up to 5 seeds)')
             query = ' '
             i = 0
             while query not in ['/', ''] and i < 5:
@@ -562,15 +627,15 @@ while inp != '/':
                     artist = sp.search(q=query, limit=6, type='artist')['artists']['items'][0]
                     art_list += [artist['uri']]
                     i += 1
-        if inp == 1:
+        if int_inp == 1:
             if not top_artists['short_term']:
                 load_top()
             for artist in top_artists['short_term'][:4]:
                 art_list += [artist['uri']]
         rec = sp.recommendations(seed_artists=art_list, limit=10)
-        print('pódenche gustar: ')
+        printc('Artists you may like: ')
         for track in rec['tracks']:
-            print('\n- ' + track['artists'][0]['name'])
+            printc('\n- ' + track['artists'][0]['name'])
 
     # <editor-fold desc="DEBUG">
     if inp == '565678':
@@ -578,11 +643,11 @@ while inp != '/':
 
     if inp.startswith('what is love'):
         p('what is love - haddaway', silent=True)
-        print('baby don\'t hurt me')
+        printc('baby don\'t hurt me')
 
     if inp == 'ich bin wirklich krank':
         p('kugel im gesicht (9mm)', silent=True)
-        print('das ist einfach die Selbsterkenntnis.')
+        printc('das ist einfach die Selbsterkenntnis.')
 
     if inp == 'kuolonpyora':
         p('kuolonpyora')
@@ -597,17 +662,19 @@ while inp != '/':
         p('OK - rammstein')
 
     if inp == 'bomba':
-        print('bomba cargada')
+        printc('bomba cargada')
 
     if inp.startswith('nick '):
         username = inp.split('nick ')[1]
 
         
-    if inp.startswith('color '):
-        if (inp.split('color ')[1] not in colors):
-            print("colores válidos: blue, red, purple, yellow")
-        else :
-            color = inp.split('color ')[1]
+    if inp.startswith('color ') or inp.startswith('colors'):
+        if (inp.startswith('colors') or inp.split('color ')[1] not in colors):
+            printc("valid colors: ")
+            for color in colors:
+                printc(" - " + colors[color] + color + colors['reset']) 
+        else:
+            user_color = inp.split('color ')[1]
 
 
     if inp in ['viva españa', 'arriba españa']:
@@ -625,4 +692,4 @@ while inp != '/':
 
     # </editor-fold>
 
-print('cerrando o programa ...')
+printc('shutting down ...')
