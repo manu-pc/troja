@@ -15,7 +15,7 @@ spotify CLI client
 
 uses [spotipy 2.24.0](https://spotipy.readthedocs.io/en/2.24.0/) for API stuff
 
-currently only in galician
+~~currently only in galician~~ now in english!!
 
 
 <details>
