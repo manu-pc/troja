@@ -17,7 +17,7 @@ top_artists = {"short_term": [], "medium_term": [], "long_term": []}
 top_tracks = {"short_term": [], "medium_term": [], "long_term": []}
 colors = {
     "blue": "\u001B[34m",
-    "red": "\u001B[31m",
+    "light_red": "\u001B[31m",
     "purple": "\u001B[35m",
     "yellow": "\u001B[33m",
     "white": "\u001B[37m",
@@ -49,10 +49,13 @@ scope = [
 
 # - - - - FUNCIÓNS - - - - #
 def printc(text, color="white", newline=True):  # imprime en cor
-    if newline:
-        print(colors[color] + text + colors["reset"])
-    else:
-        print(colors[color] + text + colors["reset"], end="")
+    try:
+        if newline:
+            print(colors[color] + text + colors["reset"])
+        else:
+            print(colors[color] + text + colors["reset"], end="")
+    except TypeError:
+        print(text)
 
 
 def intput(prompt, min=0, max=9999):
@@ -67,11 +70,11 @@ def intput(prompt, min=0, max=9999):
                     + " and "
                     + str(max)
                     + ".",
-                    "red",
+                    "light_red",
                 )
                 ans = None
         except ValueError:
-            printc("Please enter a number.", "red")
+            printc("Please enter a number.", "light_red")
             ans = None
     return ans
 
@@ -114,15 +117,18 @@ def play(playlist):
         else:
             printc("Playing playlist: ", newline=False)
             printc(playlist["name"], playlist_color, newline=False)
-            printc(" (" + playlist["description"] + ") ")
+            if playlist["description"] != "":
+                printc(" (" + playlist["description"] + ") ")
+            else:
+                print("\n")
             sp.shuffle(state=True)
         sp.start_playback(context_uri=playlist["uri"])
         time.sleep(0.7)
         now_playing()
     except Exception:
         printc(
-            "No active playback found. please start playing spotify on a device to begin.",
-            "red",
+            "No active playback found. Please start playing spotify on a device to begin.",
+            "light_red",
         )
 
 
@@ -143,18 +149,16 @@ def load_playlists():  # lee as playlists gardadas
     global playlist_names
     global playlists
     playlist_names = []
-    playlists = sp.user_playlists(user_id)
-    while playlists:
-        for k, playlist in enumerate(playlists["items"]):
-            playlist_names += [
-                playlist["name"]
-            ]  # se tes dúas playlists co mesmo nome pos jodeste amigo
-        if playlists["next"]:
-            playlists = sp.next(playlists)
+    playlists = []
+    results = sp.user_playlists(user_id)
+    while results:
+        for playlist in results["items"]:
+            playlist_names.append(playlist["name"])
+            playlists.append(playlist)
+        if results["next"]:
+            results = sp.next(results)
         else:
-            playlists = None
-
-    playlists = sp.user_playlists(user_id)["items"]
+            results = None
 
 
 def create_top_playlist(n, time_range):
@@ -206,7 +210,7 @@ def init():
 
 
 def report(error):
-    printc("An error occurred. (" + str(error) + ")")
+    printc("An error occurred. (" + str(error) + ")", "light_red")
 
 
 def load_top():
@@ -283,7 +287,7 @@ try:
 except Exception:
     printc(
         "config.ini file couldn't be read! please check setup instructions on the readme.md file.",
-        "red",
+        "light_red",
     )
     sys.exit(1)
 
@@ -323,7 +327,7 @@ warn_time = True
 
 # - - - - MAIN LOOP - - - - #
 while inp != "/":
-    inp = input(colors[user_color] + "\n<" + username + ">: " + colors["reset"]).lower()
+    inp = input(colors[user_color] + "\n<" + username + ">: " + colors["reset"])
 
     # - - - - HELP - - - - #
     if inp == "help":
@@ -413,7 +417,7 @@ while inp != "/":
                     printc(f"{color_key} has been updated to {new_color}.", "green")
                     globals()[color_key] = new_color
                 else:
-                    printc(f"{new_color} is not a valid color.", "red")
+                    printc(f"{new_color} is not a valid color.", "light_red")
             else:
                 printc("Usage: config [color_key] [color]", "yellow")
         except Exception as e:
@@ -427,19 +431,24 @@ while inp != "/":
     if inp.startswith("save "):  # SAVE + PLAYLIST  -  GARDA A PLAYLIST
         query = inp.split("save ")[1]
         try:
-            p_name = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)[0]
-            if (
-                p_name[1] > 50
-            ):  # se o que di o usuario se parece mas ou menos a algunha playlist gardada
-                playlist = playlists[playlist_names.index(p_name[0])]
+            matches = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
+            if matches:  # check if there are any matches
+                p_name = matches[0]
+                playlist = playlists[playlist_names.index(p_name)]
                 song = sp.currently_playing()["item"]
                 sp.playlist_add_items(playlist["uri"], [song["uri"]])
-                printc("Added " + fullname(song) + " to " + playlist["name"])
-
+                printc("Added ", newline=False)
+                printc(song["name"], song_color, newline=False)
+                printc(" - ", newline=False)
+                printc(song["artists"][0]["name"], artist_color, newline=False)
+                printc(" to ", newline=False)
+                printc(p_name, playlist_color, newline=False)
+                printc(".")
             else:
-                printc("Playlist not found! please try again.")
+                printc("Playlist not found! please try again.", "light_red")
         except Exception as e:
             report(e)
+
     if inp.startswith("aplay "):  # APLAY + ALBUM  -  REPRODUCIR ÁLBUM
         query = inp.split("aplay ")[1]
         try:
@@ -451,12 +460,19 @@ while inp != "/":
     if inp.startswith("play "):  # PLAY + PLAYLIST  -  REPRODUCIR PLAYLIST GARDADA
         query = inp.split("play ")[1]
         match = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
+        if not match:
+            match = difflib.get_close_matches(
+                query.upper(), playlist_names, n=1, cutoff=0.6
+            )
 
         if match:
             # se hai unha parecida
             playlist_name = match[0]
-            playlist = playlists[playlist_names.index(playlist_name)]
-            play(playlist)
+            try:
+                playlist = playlists[playlist_names.index(playlist_name)]
+                play(playlist)
+            except Exception as e:
+                printc("Couldn't load playlist " + playlist_name + ".", "light_red")
         else:
             # se non encontra ningunha playlist parecido ao que buscas, pide:
             inp = input(
@@ -627,7 +643,7 @@ while inp != "/":
                 else:
                     printc("Invalid genre.")
 
-        limit = intput("How many new songs would you like to add? (0-100)", 0, 100)
+        limit = intput("How many new songs would you like to add? (0-100) ", 0, 100)
         play_id = sp.user_playlist_create(user_id, name=p_name, description=p_desc)[
             "uri"
         ]
@@ -645,6 +661,7 @@ while inp != "/":
 
         if len(seed_list) == 0:
             printc("Cannot create an empty playlist!")
+
         else:
             expand_playlist(
                 play_id,
@@ -655,9 +672,9 @@ while inp != "/":
             )
 
             printc("Seeds used: ")
-            printc(seed_list)
+            print(seed_list)
 
-            p_desc += ". inclúe "
+            p_desc += "includes "
             if i > 2:
                 for seed in seed_list[0 : (i - 2)]:
                     p_desc += seed + ", "
@@ -677,50 +694,55 @@ while inp != "/":
         query = inp.split("expand ")[1]
         p_name = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
         if p_name:
+            printc("Playlist found: " + p_name[0])
             play_id = playlists[playlist_names.index(p_name[0])]["uri"]
-        else:
-            printc("No matching playlist found.", "red")
-        printc(
-            "\nWrite a list of artists to expand the playlist. Write / to finish. (up to 5 seeds)"
-        )
-        art_list = []
-        seed_list = []
-        query = " "
-        i = 0
-        while query not in ["/", ""] and i < 5:
-            query = input("\n - ")
-            if query not in ["/", ""]:
-                artist = sp.search(q=query, limit=5, type="artist")["artists"]["items"][
-                    0
-                ]
-                art_list += [artist["uri"]]
-                seed_list += [artist["name"]]
-                i += 1
-
-        if i < 5:
             printc(
-                "\nWrite a list of genres to expand the playlist. Write / to finish. (up to 5 seeds)"
+                "\nWrite a list of artists to expand the playlist. Write / to finish. (up to 5 seeds)"
             )
-
-        genre_list = []
-        query = " "
-        while query not in ["/", ""] and i < 5:
-            query = input("\n - ")
-            if query == "?":
-                printc(sp.recommendation_genre_seeds()["genres"])
-            elif query not in ["/", ""]:
-                if query in sp.recommendation_genre_seeds()["genres"]:
-                    genre_list += [query]
-                    seed_list += [query]
+            art_list = []
+            seed_list = []
+            query = " "
+            i = 0
+            while query not in ["/", ""] and i < 5:
+                query = input("\n - ")
+                if query not in ["/", ""]:
+                    artist = sp.search(q=query, limit=5, type="artist")["artists"][
+                        "items"
+                    ][0]
+                    art_list += [artist["uri"]]
+                    seed_list += [artist["name"]]
                     i += 1
-                else:
-                    printc("Invalid genre.")
 
-        limit = intput("How many new songs would you like to add? (0-100)", 0, 100)
-        expand_playlist(
-            play_id, seed_artists=art_list, seed_genres=genre_list, limit=limit
-        )
-        printc("Added " + str(limit) + " songs.")
+            if i < 5:
+                printc(
+                    "\nWrite a list of genres to expand the playlist. Write / to finish. (up to 5 seeds)"
+                )
+
+            genre_list = []
+            query = " "
+            while query not in ["/", ""] and i < 5:
+                query = input("\n - ")
+                if query == "?":
+                    printc(sp.recommendation_genre_seeds()["genres"])
+                elif query not in ["/", ""]:
+                    if query in sp.recommendation_genre_seeds()["genres"]:
+                        genre_list += [query]
+                        seed_list += [query]
+                        i += 1
+                    else:
+                        printc("Invalid genre.")
+
+            limit = intput("How many new songs would you like to add? (0-100) ", 0, 100)
+            expand_playlist(
+                play_id, seed_artists=art_list, seed_genres=genre_list, limit=limit
+            )
+        else:
+            printc("No matching playlist found.", "light_red")
+
+    if inp == "expand":
+        printc("Saved playlists: ")
+        print(playlist_names)
+        printc("Use expand [playlist] to expand a playlist.")
 
     # - - - - RECOMMENDATIONS - - - - #
     if inp in ["d", "discover"]:
