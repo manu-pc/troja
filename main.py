@@ -427,7 +427,7 @@ while inp != "/":
     if inp.startswith("save "):  # SAVE + PLAYLIST  -  GARDA A PLAYLIST
         query = inp.split("save ")[1]
         try:
-            p_name = process.extractOne(query, playlist_names)
+            p_name = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)[0]
             if (
                 p_name[1] > 50
             ):  # se o que di o usuario se parece mas ou menos a algunha playlist gardada
@@ -675,9 +675,11 @@ while inp != "/":
     # EXPANDIR PLAYLIST CON RECOMENDACIÓNS
     if inp.startswith("expand "):
         query = inp.split("expand ")[1]
-        p_name = process.extractOne(query, playlist_names)
-        play_id = playlists[playlist_names.index(p_name[0])]["uri"]
-
+        p_name = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
+        if p_name:
+            play_id = playlists[playlist_names.index(p_name[0])]["uri"]
+        else:
+            printc("No matching playlist found.", "red")
         printc(
             "\nWrite a list of artists to expand the playlist. Write / to finish. (up to 5 seeds)"
         )
