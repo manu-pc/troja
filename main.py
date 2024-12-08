@@ -600,7 +600,7 @@ while inp != "/":
         p_desc = "Created with troja."
 
         printc("\nWrite a list of new songs to add. Write / to finish.")
-        seed_list = []
+        #seed_list = []
         song_list = []
         i = 0
         query = " "
@@ -614,7 +614,7 @@ while inp != "/":
             if query not in ["/", ""]:
                 song = sp.search(q=query, limit=5, type="track")["tracks"]["items"][0]
                 song_list += [song["uri"]]
-
+        """
         printc("\nWrite a list of artists to add. Write / to finish. (up to 5 seeds)")
         art_list = []
         query = " "
@@ -647,21 +647,22 @@ while inp != "/":
                     printc("Invalid genre.")
 
         limit = intput("How many new songs would you like to add? (0-100) ", 0, 100)
-        play_id = sp.user_playlist_create(user_id, name=p_name, description=p_desc)[
-            "uri"
-        ]
 
+        """
+        play_id = sp.user_playlist_create(user_id, name=p_name, description=p_desc)["uri"]
         if len(song_list) > 0:
             sp.playlist_add_items(playlist_id=play_id, items=song_list)
             # en total podense meter 5 semillas. se entre os artistas e os generos hai menos de 5, completa collendo as
             # canciones que foron añadidas como semilla
+        
+        """
         seed_songs = []
         j = 0
         while j < (5 - i) and j < len(song_list):
             seed_songs += [song_list[j]]
             seed_list += [sp.track(song_list[j])["name"]]
             j += 1
-
+    
         if len(seed_list) == 0:
             printc("Cannot create an empty playlist!")
 
@@ -676,18 +677,18 @@ while inp != "/":
 
             printc("Seeds used: ")
             print(seed_list)
-
-            p_desc += "includes "
-            if i > 2:
-                for seed in seed_list[0 : (i - 2)]:
-                    p_desc += seed + ", "
-            if i > 1:
-                p_desc += seed_list[i - 2] + " e "
-            p_desc += seed_list[i - 1] + "."
-            sp.playlist_change_details(playlist_id=play_id, description=p_desc)
-            inp = input("Playlist created. Play now? (y/n) ")
-            if inp == "y":
-                play(sp.playlist(play_id))
+        p_desc += "includes "
+        if i > 2:
+            for seed in seed_list[0 : (i - 2)]:
+                p_desc += seed + ", "
+        if i > 1:
+            p_desc += seed_list[i - 2] + " e "
+        p_desc += seed_list[i - 1] + "."
+        """
+        sp.playlist_change_details(playlist_id=play_id, description=p_desc)
+        inp = input("Playlist created. Play now? (y/n) ")
+        if inp == "y":
+             play(sp.playlist(play_id))
 
         # probablemente haba unha forma mellor de facer esto pero
         # dios non me puxo aquí para facer as cousas ben
