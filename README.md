@@ -7,7 +7,7 @@ spotify CLI client
 - play specific song, playlist or album
 - pause or skip song
 - see your spotify stats (most played artist/tracks)
-- create a new playlist, manually adding song or getting automatic recommendations by specifying artists, genres or similar songs
+- create a new playlist, manually adding song ~~or getting automatic recommendations by specifying artists, genres or similar songs~~ :(
 - expand existing playlist with new songs
 - some more stuff!!
 
