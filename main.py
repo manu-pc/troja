@@ -13,7 +13,6 @@ ranges = ["short_term", "medium_term", "long_term"]
 MAX_QUEUE = 5
 playlists = []
 playlist_names = []
-devices = []
 top_artists = {"short_term": [], "medium_term": [], "long_term": []}
 top_tracks = {"short_term": [], "medium_term": [], "long_term": []}
 colors = {
@@ -83,22 +82,10 @@ def intput(prompt, min=0, max=9999):
 def fullname(track):
     return track["name"] + " - " + track["artists"][0]["name"]
 
-def start_playback():
-    try:
-        sp.start_playback()
-        time.sleep(0.6)
-        now_playing()
-    except Exception:
-        printc(
-            "No active playback found. Please start playing spotify on a device to begin.",
-            "light_red",
-        )
 
 def now_playing():
     try:
         playback = sp.current_playback()
-        if not playback:
-            return
         if playback and playback["is_playing"]:
             track = playback["item"]
             printc("Now playing: ", newline=False)
@@ -120,34 +107,29 @@ def skip(silent=False):
 
 
 def play(playlist):
-    if sp.current_playback()['device']['is_active']:
-        sp.start_playback(context_uri=playlist["uri"])
-    else:
-        for device in devices:
-            try:
-                sp.start_playback(device_id=device["id"], context_uri=playlist["uri"])
-                break
-            except Exception:
-                continue
-    if sp.current_playback():
-            if playlist["type"] == "album":
-                sp.shuffle(state=False)
-                printc("Playing album: ", newline=False)
-                printc(playlist["name"], album_color, newline=False)
-                printc(" - ", "grey", newline=False)
-                printc(playlist["artists"][0]["name"], artist_color)
+    try:
+        if playlist["type"] == "album":
+            sp.shuffle(state=False)
+            printc("Playing album: ", newline=False)
+            printc(playlist["name"], album_color, newline=False)
+            printc(" - ", "grey", newline=False)
+            printc(playlist["artists"][0]["name"], artist_color)
+        else:
+            printc("Playing playlist: ", newline=False)
+            printc(playlist["name"], playlist_color, newline=False)
+            if playlist["description"] != "":
+                printc(" (" + playlist["description"] + ") ")
             else:
-                printc("Playing playlist: ", newline=False)
-                printc(playlist["name"], playlist_color, newline=False)
-                if playlist["description"] != "":
-                    printc(" (" + playlist["description"] + ") ")
-                else:
-                    print("\n")
-                sp.shuffle(state=True)
-            time.sleep(0.7)
-            now_playing()
-    else:
-        printc("Couldn't start playback. No active devices found.", "light_red")
+                print("\n")
+            sp.shuffle(state=True)
+        sp.start_playback(context_uri=playlist["uri"])
+        time.sleep(0.7)
+        now_playing()
+    except Exception:
+        printc(
+            "No active playback found. Please start playing spotify on a device to begin.",
+            "light_red",
+        )
 
 
 def p(query, silent=False):  # plays a song w/o interrupting queue
@@ -163,7 +145,6 @@ def queue_uri(n):  # lee o uri dos n proximos da cola
     return q_uri
 
 def load_devices():
-
     global devices
     devices = sp.devices()["devices"]
     printc(f"Loaded {len(devices)} devices.", "green")
@@ -188,9 +169,6 @@ def load_playlists():
         else:
             break
 
-    printc(f"Loaded {len(playlist_names)} playlists.", "green")
-
-# Example call to load playlists
 def create_top_playlist(n, time_range):
     tempos = {
         "short_term": " this month",
@@ -212,6 +190,7 @@ def create_top_playlist(n, time_range):
     return play_id
 
 
+#!DEPRECATED
 def expand_playlist(
     play_id, seed_artists=None, seed_tracks=None, seed_genres=None, limit=50
 ):
@@ -222,7 +201,6 @@ def expand_playlist(
             seed_genres=seed_genres,
             limit=limit,
         )
-        print(f"Raw API Response: {recommendations}")
         newsongs = [track["uri"] for track in recommendations["tracks"]]
         sp.playlist_add_items(playlist_id=play_id, items=newsongs)
         printc(f"Successfully added {len(newsongs)} songs to the playlist.", "green")
@@ -373,18 +351,17 @@ while inp != "/":
             "save + playlist - add the current song to a playlist \n"
             "t, top - check most listened songs/artists, and allows exporting them to a playlist\n"
             "make - create a playlist, manually or auto-completed with Spotify algorithm\n"
-            "help+ - see more commands"
+            "reroll - randomize the current queue\n"
         )
 
-    if inp == "help+":
-        printc(
-            "reroll - randomize the current queue\n"
-            "expand + playlist - expand an existing playlist with recommendations\n"
-            "rec - start playing a random recommendation, based on your current queue\n"
-            "rec + artist - start playing a random recommendation from an artist \n"
-            "d, discover - recommend new songs, albums, or artists \n"
-            "(include a + after the artist name to allow similar artists)"
-        )
+    #if inp == "help+":
+    #    printc(
+            #"expand + playlist - expand an existing playlist with recommendations\n"
+            #"rec - start playing a random recommendation, based on your current queue\n"
+            #"rec + artist - start playing a random recommendation from an artist \n"
+            #"d, discover - recommend new songs, albums, or artists \n"
+            #"(include a + after the artist name to allow similar artists)"
+    #    )
 
     # - - - - PLAYBACK - - - - #
     if inp == "q":  # Q - IMPRIMIR COLA
@@ -409,16 +386,17 @@ while inp != "/":
             report(e)
 
     if inp == "p":
-        try:
-            if sp.current_playback()["is_playing"]:
-                printc("Pausing playback...")
-                sp.pause_playback()
+        if sp.current_playback()["is_playing"]:
+            printc("Pausing playback...")
+            sp.pause_playback()
 
-            else:
-                    sp.start_playback()
-                    now_playing()
-        except Exception as e:
-            report(e)
+        else:
+            try:
+                sp.start_playback()
+                now_playing()
+
+            except Exception as e:
+                report(e)
 
     if inp.startswith("p "):  # P + CANCIÓN  -  ENGADIR CANCIÓN A COLA E REPRODUCILA
         query = inp.split("p ")[1]
@@ -451,29 +429,6 @@ while inp != "/":
                     printc(f"{new_color} is not a valid color.", "light_red")
             else:
                 printc("Usage: config [color_key] [color]", "yellow")
-        except Exception as e:
-            report(e)
-
-    if inp == "dev":
-        load_devices()
-        printc("Active devices: ")
-        for device in devices:
-            printc(device["name"], "light_cyan", newline=False);
-            printc(" - " + device["id"], "light_yellow")
-    
-    if inp.startswith("dev "):
-        try:
-            device_name = inp.split("dev ")[1]
-            device_id = None
-            for device in devices:
-                if device["name"].lower() == device_name.lower():
-                    device_id = device["id"]
-                    break
-            if device_id is None:
-                printc("Device not found.", "light_red")
-                continue
-            sp.transfer_playback(device_id=device_id, force_play=True)
-            printc("Switched playback to \'" + device_name + "\'.", "green")
         except Exception as e:
             report(e)
 
@@ -513,10 +468,10 @@ while inp != "/":
             report(e)
     if inp.startswith("play "):  # PLAY + PLAYLIST  -  REPRODUCIR PLAYLIST GARDADA
         query = inp.split("play ")[1]
-        match = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.4)
-        if not match: # segundo intento, en maiusculas
+        match = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
+        if not match:
             match = difflib.get_close_matches(
-                query.upper(), playlist_names, n=1, cutoff=0.4
+                query.upper(), playlist_names, n=1, cutoff=0.6
             )
 
         if match:
@@ -554,6 +509,10 @@ while inp != "/":
             report(e)
 
     if inp == "rec":  # REC - REPRODUCIR RECOMENDACIÓN
+        printc("This feature has been deprecated due to changes to Spotify's API. You can read more here: "
+               +"https://community.spotify.com/t5/Spotify-for-Developers/Changes-to-Web-API/td-p/6540414" +
+               "\nSorry for the inconvenience :(", "light_red")
+        continue
         try:
             song = sp.recommendations(seed_tracks=(queue_uri(5)), limit=1)["tracks"][0]
             sp.add_to_queue(song["external_urls"]["spotify"])
@@ -563,6 +522,10 @@ while inp != "/":
             report(e)
 
     if inp.startswith("rec "):
+        printc("This feature has been deprecated due to changes to Spotify's API. You can read more here: "
+               +"https://community.spotify.com/t5/Spotify-for-Developers/Changes-to-Web-API/td-p/6540414" +
+               "\nSorry for the inconvenience :(", "light_red")
+        continue
         inp = inp.split("rec ")[1]
         artist = sp.search(q=inp, limit=5, type="artist")["artists"]["items"][0]
         song = sp.recommendations(seed_artists=[artist["uri"]], limit=1)["tracks"][0]
@@ -619,24 +582,10 @@ while inp != "/":
                     if query == "y":
                         play_id = create_top_playlist(ndatos, time_range)
                         query = input(
-                            "Playlist succesfully created. Complete with recommendations? (y/n) "
+                            "Playlist succesfully created. Play now? (y/n) "
                         )
                         if query == "y":
-                            limit = intput(
-                                "How many new songs would you like to add? (1-100) ",
-                                1,
-                                100,
-                            )
-                            if 0 < limit < 101:
-                                art_list = []
-                                for artist in top_artists[time_range][:5]:
-                                    art_list += [artist["uri"]]
-                                expand_playlist(play_id, art_list, limit=limit)
-                                printc(
-                                    "Playlist expanded with "
-                                    + str(limit)
-                                    + " new songs."
-                                )
+                            play(sp.playlist(play_id))
 
             inp = "0"
 
@@ -704,9 +653,8 @@ while inp != "/":
 
         if len(song_list) > 0:
             sp.playlist_add_items(playlist_id=play_id, items=song_list)
-        
-        # en total podense meter 5 semillas. se entre os artistas e os generos hai menos de 5, completa collendo as
-        # canciones que foron añadidas como semilla
+            # en total podense meter 5 semillas. se entre os artistas e os generos hai menos de 5, completa collendo as
+            # canciones que foron añadidas como semilla
         seed_songs = []
         j = 0
         while j < (5 - i) and j < len(song_list):
@@ -746,6 +694,10 @@ while inp != "/":
 
     # EXPANDIR PLAYLIST CON RECOMENDACIÓNS
     if inp.startswith("expand "):
+        printc("This feature has been deprecated due to changes to Spotify's API. You can read more here: "
+               +"https://community.spotify.com/t5/Spotify-for-Developers/Changes-to-Web-API/td-p/6540414" +
+               "\nSorry for the inconvenience :(", "light_red")
+        continue
         query = inp.split("expand ")[1]
         p_name = difflib.get_close_matches(query, playlist_names, n=1, cutoff=0.6)
         if p_name:
@@ -795,12 +747,21 @@ while inp != "/":
             printc("No matching playlist found.", "light_red")
 
     if inp == "expand":
+        printc("This feature has been deprecated due to changes to Spotify's API. You can read more here: "
+               +"https://community.spotify.com/t5/Spotify-for-Developers/Changes-to-Web-API/td-p/6540414" +
+               "\nSorry for the inconvenience :(", "light_red")
+        continue
         printc("Saved playlists: ")
         print(playlist_names)
         printc("Use expand [playlist] to expand a playlist.")
 
     # - - - - RECOMMENDATIONS - - - - #
     if inp in ["d", "discover"]:
+    
+        printc("This feature has been deprecated due to changes to Spotify's API. You can read more here: "
+               +"https://community.spotify.com/t5/Spotify-for-Developers/Changes-to-Web-API/td-p/6540414" +
+               "\nSorry for the inconvenience :(", "light_red")
+        continue
         int_inp = intput(
             "0 - manual\n1 - based on top artists\n" + "<" + username + ">: ", 0, 1
         )
@@ -828,25 +789,6 @@ while inp != "/":
             printc("\n- " + track["artists"][0]["name"])
 
     # - - - - DEBUG - - - - #
-
-    if inp == "api":
-        print(sp.auth_manager.get_access_token())
-
-    if inp == "cache":
-        print(sp.auth_manager.get_cached_token())
-    
-    if inp == "genres":
-        try:
-            genres = sp.recommendation_genre_seeds()
-            print(f"Available genres: {genres}")
-        except Exception as e:
-            print(f"Error: {e}")
-            if hasattr(e, 'http_status'):
-                print(f"HTTP Status: {e.http_status}")
-            if hasattr(e, 'reason'):
-                print(f"Reason: {e.reason}")
-
-
     if inp == "565678":
         p("hot to go!")
 
